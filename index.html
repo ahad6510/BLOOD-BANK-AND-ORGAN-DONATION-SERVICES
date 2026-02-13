@@ -19,25 +19,34 @@
             <a href="#" class="text-2xl font-bold text-red-500">TOHF-E-HAYAT</a>
             <div class="hidden md:flex space-x-6 items-center">
                 <a href="#home" class="nav-link text-gray-600 hover:text-red-500 transition duration-300">Home</a>
-                <a href="#about" class="nav-link text-gray-600 hover:text-red-500 transition duration-300">About Us</a>
                 <a href="#find" class="nav-link text-gray-600 hover:text-red-500 transition duration-300">Find a Donor</a>
                 
+                <a href="#notifications" id="nav-notifications" class="nav-link text-gray-600 hover:text-red-500 transition duration-300 relative">
+    Notifications
+    <span id="notification-badge" class="hidden absolute -top-2 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+</a>
+
                 <a href="#login" id="nav-login" class="nav-link text-gray-600 hover:text-red-500 transition duration-300">Login</a>
                 <a href="#signup" id="nav-signup" class="nav-link text-gray-600 hover:text-red-500 transition duration-300">Sign Up</a>
 
                 <a href="#register" id="nav-register" class="hidden nav-link bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600 transition duration-300">Register as Donor</a>
                 <button id="nav-logout" class="hidden text-gray-600 hover:text-red-500 transition duration-300">Logout</button>
             </div>
+            
             <button id="mobile-menu-button" class="md:hidden text-gray-600 focus:outline-none">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
             </button>
         </nav>
-        <div id="mobile-menu" class="md:hidden hidden px-6 pb-4 space-y-2">
-            <a href="#home" class="nav-link block text-gray-600 hover:text-red-500">Home</a>
-            <a href="#about" class="nav-link block text-gray-600 hover:text-red-500">About Us</a>
-            <a href="#find" class="nav-link block text-gray-600 hover:text-red-500">Find a Donor</a>
-            <a href="#login" class="nav-link block text-gray-600 hover:text-red-500">Login</a>
-        </div>
+
+      <div id="mobile-menu" class="md:hidden hidden px-6 pb-4 space-y-2">
+    <a href="#home" class="nav-link block text-gray-600 hover:text-red-500">Home</a>
+    <a href="#about" class="nav-link block text-gray-600 hover:text-red-500">About Us</a>
+    <a href="#find" class="nav-link block text-gray-600 hover:text-red-500">Find a Donor</a>
+    
+    <a href="#notifications" id="mobile-nav-notifications" class="hidden nav-link block text-gray-600 hover:text-red-500">Notifications</a>
+    
+    <a href="#login" class="nav-link block text-gray-600 hover:text-red-500">Login</a>
+</div>
     </header>
 
     <main>
@@ -177,7 +186,20 @@
                     <p class="text-lg">No donors found matching your criteria.</p>
                 </div>
                 <div id="donor-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                </div>
+            </div>
+        </section>
+
+        <section id="notifications" class="section py-16">
+            <div class="container mx-auto px-6">
+                <h2 class="text-3xl font-bold text-center mb-10">Your Notifications</h2>
+                <div class="max-w-4xl mx-auto">
+                    <div id="notification-list" class="space-y-4">
+                        </div>
+                    <div id="no-notifications" class="text-center text-gray-500 hidden">
+                        <p>You have no pending requests.</p>
                     </div>
+                </div>
             </div>
         </section>
 
