@@ -1,6 +1,13 @@
 // 1. Correct Imports for Firebase 10
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { 
+    getAuth, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    onAuthStateChanged,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { 
     getFirestore, 
     collection, 
     addDoc, 
@@ -21,11 +28,20 @@ const firebaseConfig = {
 
 // 2. Initialize Firebase & Firestore
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const db = getFirestore(app);
 const donorsCol = collection(db, "donors");
 
 document.addEventListener('DOMContentLoaded', () => {
     let allDonors = [];
+
+    // --- New Auth Selectors ---
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+    const navLogin = document.getElementById('nav-login');
+    const navSignup = document.getElementById('nav-signup');
+    const navRegister = document.getElementById('nav-register'); 
+    const navLogout = document.getElementById('nav-logout');
 
     // --- Element Selectors ---
     const sections = document.querySelectorAll('.section');
@@ -47,12 +63,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchBloodType = document.getElementById('search-blood-type');
     const searchOrgan = document.getElementById('search-organ');
 
-    // --- SPA Navigation Logic ---
+    // --- SPA Navigation Logic (Updated with Auth Protection) ---
+    // --- SPA Navigation Logic (Updated for Objective 2) ---
     const showSection = (hash) => {
         const id = hash ? hash.substring(1) : 'home';
+        
+        // PROTECTED ROUTE CHECK: 
+        // We now check for BOTH 'register' AND 'find'
+        if ((id === 'register' || id === 'find') && !auth.currentUser) {
+            showToast('You must login to view donor details.', true);
+            window.location.hash = '#login';
+            return;
+        }
+
         sections.forEach(section => {
             section.classList.toggle('active', section.id === id);
         });
+        
+        // Only fetch data if we are allowed to be here
         if (id === 'find') fetchDonors();
     };
 
@@ -68,6 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.addEventListener('hashchange', () => showSection(window.location.hash));
+    
+    // Initial Load
     showSection(window.location.hash || '#home');
 
     mobileMenuButton.addEventListener('click', () => {
@@ -98,7 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const bloodType = document.getElementById('blood-type').value;
 
-        const donorData = {
+      const donorData = {
+            userId: auth.currentUser.uid,  // <--- ADD THIS LINE (Links data to the user)
+            userEmail: auth.currentUser.email, // <--- ADD THIS LINE (Optional, for admin use)
             fullName: document.getElementById('fullName').value,
             age: parseInt(document.getElementById('age').value),
             gender: document.getElementById('gender').value,
@@ -113,7 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            // Save to Firebase Firestore
             await addDoc(donorsCol, donorData);
             showToast('Registration successful! Thank you for being a hero.');
             registrationForm.reset();
@@ -205,4 +236,91 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.className = `fixed bottom-5 right-5 text-white px-6 py-3 rounded-lg shadow-lg transition-opacity duration-300 opacity-100 ${isError ? 'bg-red-600' : 'bg-gray-900'}`;
         setTimeout(() => { toast.style.opacity = '0'; }, 3000);
     }
-});
+
+    // --- Authentication Logic (Now correctly inside DOMContentLoaded) ---
+
+    // 1. Handle Sign Up (Redirects to Login)
+    // 1. Handle Sign Up (DEBUG VERSION)
+    signupForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('signup-email').value;
+        const password = document.getElementById('signup-password').value;
+
+        // 1. Check if the button is actually working
+        console.log("Sign up button clicked"); 
+
+        createUserWithEmailAndPassword(auth, email, password)
+            .then((userCredential) => {
+                // 2. Success Case
+                alert("SUCCESS: Account created! Click OK to go to Login."); 
+                
+                signOut(auth).then(() => {
+                    signupForm.reset();
+                    window.location.hash = '#login';
+                });
+            })
+            .catch((error) => {
+                // 3. Error Case (e.g., Email already in use)
+                console.error(error);
+                alert("ERROR: " + error.message); 
+            });
+    });
+
+    // 2. Handle Login
+    loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+
+        signInWithEmailAndPassword(auth, email, password)
+            .then((userCredential) => {
+                showToast('Logged in successfully!');
+                loginForm.reset();
+                // Redirect to Donor Registration after login
+                window.location.hash = '#register'; 
+            })
+            .catch((error) => {
+                showToast("Invalid email or password", true);
+            });
+    });
+
+    // 3. Handle Logout
+    navLogout.addEventListener('click', () => {
+        signOut(auth).then(() => {
+            showToast('Logged out successfully.');
+            window.location.hash = '#home';
+        }).catch((error) => {
+            showToast('Error logging out.', true);
+        });
+    });
+
+    // 4. Monitor Auth State (Update UI)
+   // 4. Monitor Auth State (Update UI & Protect Pages)
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            // User is signed in
+            navLogin.classList.add('hidden');
+            navSignup.classList.add('hidden');
+            navRegister.classList.remove('hidden');
+            navLogout.classList.remove('hidden');
+            
+            // If they were stuck on login but are now logged in, send them to Find
+            if (window.location.hash === '#login') {
+                window.location.hash = '#find';
+            }
+        } else {
+            // User is signed out
+            navLogin.classList.remove('hidden');
+            navSignup.classList.remove('hidden');
+            navRegister.classList.add('hidden');
+            navLogout.classList.add('hidden');
+            
+            // SECURITY: If they are on a protected page (Register OR Find), kick them to login
+            const hash = window.location.hash;
+            if (hash === '#register' || hash === '#find') {
+                 window.location.hash = '#login';
+            }
+        }
+    });
+
+}); // <--- THIS CLOSING BRACE IS CRITICAL
