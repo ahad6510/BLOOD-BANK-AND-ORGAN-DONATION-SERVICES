@@ -15,7 +15,7 @@ import {
     query, 
     where,
     updateDoc,
-    deleteDoc, // <--- NEW IMPORT for Deleting
+    deleteDoc, 
     doc,
     orderBy 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -42,38 +42,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allDonors = [];
     let myRequests = {}; 
+    let editingDonorId = null; // NEW: Tracks if we are editing
 
-    // --- Selectors (with safety checks) ---
+    // --- Selectors ---
     const getEl = (id) => document.getElementById(id);
 
     const loginForm = getEl('login-form');
     const signupForm = getEl('signup-form');
-    
-    // Navigation Items
     const navLogin = getEl('nav-login');
     const navSignup = getEl('nav-signup');
     const navRegister = getEl('nav-register'); 
     const navLogout = getEl('nav-logout');
-    
-    // Notifications Items
     const navNotifications = getEl('nav-notifications');
     const mobileNavNotifications = getEl('mobile-nav-notifications'); 
     const notificationBadge = getEl('notification-badge');
     const notificationList = getEl('notification-list');
     const noNotifications = getEl('no-notifications');
-
     const sections = document.querySelectorAll('.section');
     const navLinks = document.querySelectorAll('.nav-link');
     const mobileMenu = getEl('mobile-menu');
     const mobileMenuButton = getEl('mobile-menu-button');
-    
-    // Forms & Lists
     const registrationForm = getEl('registration-form');
     const donorList = getEl('donor-list');
     const loader = getEl('loader');
     const noResults = getEl('no-results');
-    
-    // Search Filters
     const searchCity = getEl('search-city');
     const searchDonationType = getEl('search-donation-type');
     const searchBloodType = getEl('search-blood-type');
@@ -88,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const showSection = (hash) => {
         const id = hash ? hash.substring(1) : 'home';
         
-        // Protected Routes Check
         if ((id === 'register' || id === 'find' || id === 'notifications') && !auth.currentUser) {
             showToast('Please login to access this section.', true);
             window.location.hash = '#login';
@@ -99,6 +90,11 @@ document.addEventListener('DOMContentLoaded', () => {
             section.classList.toggle('active', section.id === id);
         });
         
+        // Reset Edit Mode if leaving register page
+        if (id !== 'register' && editingDonorId) {
+            resetFormState();
+        }
+
         if (id === 'find') fetchDonors();
         if (id === 'notifications') fetchNotifications();
     };
@@ -123,49 +119,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Auth State Monitor ---
+    // --- Auth State ---
     onAuthStateChanged(auth, (user) => {
         if (user) {
             if(navLogin) navLogin.classList.add('hidden');
             if(navSignup) navSignup.classList.add('hidden');
             if(navRegister) navRegister.classList.remove('hidden');
             if(navLogout) navLogout.classList.remove('hidden');
-            
             if(navNotifications) {
                 navNotifications.style.display = 'block'; 
                 navNotifications.classList.remove('hidden');
             }
             if(mobileNavNotifications) mobileNavNotifications.classList.remove('hidden');
-
             fetchNotifications();
-
-            if (window.location.hash === '#login') {
-                window.location.hash = '#find';
-            }
+            if (window.location.hash === '#login') window.location.hash = '#home';
         } else {
             if(navLogin) navLogin.classList.remove('hidden');
             if(navSignup) navSignup.classList.remove('hidden');
             if(navRegister) navRegister.classList.add('hidden');
             if(navLogout) navLogout.classList.add('hidden');
-            
             if(navNotifications) {
                 navNotifications.style.display = 'none'; 
                 navNotifications.classList.add('hidden');
             }
             if(mobileNavNotifications) mobileNavNotifications.classList.add('hidden');
-
             const hash = window.location.hash;
-            if (hash === '#register' || hash === '#find' || hash === '#notifications') {
-                 window.location.hash = '#login';
-            }
+            if (hash === '#register' || hash === '#find' || hash === '#notifications') window.location.hash = '#login';
         }
     });
 
-    // --- Registration Logic ---
+    // --- Registration & Edit Logic ---
     if(donateOrganCheckbox) {
         donateOrganCheckbox.addEventListener('change', () => {
             organDetails.classList.toggle('hidden', !donateOrganCheckbox.checked);
         });
+    }
+
+    // HELPER: Reset Form
+    function resetFormState() {
+        editingDonorId = null;
+        registrationForm.reset();
+        organDetails.classList.add('hidden');
+        // Reset button text
+        const btn = registrationForm.querySelector('button[type="submit"]');
+        if(btn) btn.textContent = "Register Now";
+        // Reset header text (optional, assuming H2 is "Become a Lifesaver")
+        const header = document.querySelector('#register h2');
+        if(header) header.textContent = "Become a Lifesaver";
     }
 
     if(registrationForm) {
@@ -175,22 +175,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const isOrganDonor = donateOrganCheckbox.checked;
             const bloodType = getEl('blood-type').value; 
 
-            // 1. Validation: Must select at least one type
             if (!isBloodDonor && !isOrganDonor) {
-                showToast('Please select at least one donation type (Blood or Organ).', true);
+                showToast('Please select at least one donation type.', true);
                 return;
             }
-
-            // 2. Validation: Blood Type is MANDATORY
             if (bloodType === "") {
-                showToast('Blood Type is required for all donors.', true);
+                showToast('Blood Type is required.', true);
                 return;
             }
 
             const pledgedOrgans = isOrganDonor ? 
                 [...document.querySelectorAll('input[name="organ"]:checked')].map(cb => cb.value) : [];
 
-            // 3. Validation: Organ Check
             if (isOrganDonor && pledgedOrgans.length === 0) {
                 showToast('Please select which organs you wish to donate.', true);
                 return;
@@ -209,13 +205,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 bloodType: bloodType,
                 isOrganDonor,
                 organs: pledgedOrgans,
-                createdAt: new Date()
+                // Only update createdAt if it's a new post, otherwise keep original date? 
+                // Actually, for sorting, let's keep original date or add updatedAt.
+                // We'll keep createdAt as is for now.
             };
 
+            // NEW: Add createdAt only if new
+            if (!editingDonorId) {
+                donorData.createdAt = new Date();
+            }
+
             try {
-                await addDoc(donorsCol, donorData);
-                showToast('Registration successful!');
-                registrationForm.reset();
+                if (editingDonorId) {
+                    // UPDATE EXISTING
+                    const docRef = doc(db, "donors", editingDonorId);
+                    await updateDoc(docRef, donorData);
+                    showToast('Profile updated successfully!');
+                } else {
+                    // CREATE NEW
+                    await addDoc(donorsCol, donorData);
+                    showToast('Registration successful!');
+                }
+                
+                resetFormState();
                 window.location.hash = '#find';
             } catch (error) {
                 console.error(error);
@@ -272,26 +284,24 @@ document.addEventListener('DOMContentLoaded', () => {
             let phoneNumberDisplay = '<span class="text-gray-400 italic">Hidden for Privacy</span>';
 
             if (isMyOwnPost) {
-                // CASE 1: MY OWN POST
                 phoneNumberDisplay = `<a href="tel:${donor.phone}" class="text-blue-600 hover:underline">${donor.phone}</a>`;
                 
-                // NEW: Added Delete Button
+                // NEW: Added Edit Button next to Delete
                 actionButton = `
                     <div class="flex items-center space-x-2 w-full">
-                        <span class="text-xs bg-gray-200 px-2 py-2 rounded text-center flex-grow">Your Post</span>
-                        <button onclick="window.deleteDonor('${donor.id}')" class="text-xs bg-red-100 text-red-600 px-3 py-2 rounded hover:bg-red-200 border border-red-200 font-bold">
+                        <button onclick="window.editDonor('${donor.id}')" class="flex-1 bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 font-bold transition text-sm">
+                            Edit
+                        </button>
+                        <button onclick="window.deleteDonor('${donor.id}')" class="flex-1 bg-red-100 text-red-600 px-3 py-2 rounded hover:bg-red-200 border border-red-200 font-bold text-sm">
                             Delete
                         </button>
                     </div>`;
             } else if (requestStatus === 'approved') {
-                // CASE 2: APPROVED
                 phoneNumberDisplay = `<a href="tel:${donor.phone}" class="text-blue-600 font-bold hover:underline">${donor.phone}</a>`;
                 actionButton = `<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Approved</span>`;
             } else if (requestStatus === 'pending') {
-                // CASE 3: PENDING
                 actionButton = `<button disabled class="w-full bg-yellow-400 text-white py-2 rounded font-semibold cursor-not-allowed">Request Pending...</button>`;
             } else {
-                // CASE 4: REQUEST
                 actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.userId}', '${donor.fullName}', '${donor.phone}')" class="w-full bg-red-500 text-white py-2 rounded font-semibold hover:bg-red-600 transition">Request Contact</button>`;
             }
 
@@ -321,14 +331,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Global Functions ---
-    // NEW: Delete Donor Function
+    
+    // NEW: Edit Donor Function
+    window.editDonor = (id) => {
+        // Find the donor data locally
+        const donor = allDonors.find(d => d.id === id);
+        if (!donor) return;
+
+        // Set Edit Mode
+        editingDonorId = id;
+
+        // Populate Form
+        getEl('fullName').value = donor.fullName;
+        getEl('age').value = donor.age;
+        getEl('gender').value = donor.gender;
+        getEl('phone').value = donor.phone;
+        getEl('city').value = donor.city;
+        getEl('state').value = donor.state;
+        getEl('blood-type').value = donor.bloodType;
+
+        // Handle Checkboxes
+        donateBloodCheckbox.checked = donor.isBloodDonor;
+        donateOrganCheckbox.checked = donor.isOrganDonor;
+        
+        // Show/Hide Organ Details
+        organDetails.classList.toggle('hidden', !donor.isOrganDonor);
+
+        // Reset Organs
+        document.querySelectorAll('input[name="organ"]').forEach(cb => cb.checked = false);
+        if (donor.isOrganDonor && donor.organs) {
+            donor.organs.forEach(organ => {
+                const cb = document.querySelector(`input[name="organ"][value="${organ}"]`);
+                if(cb) cb.checked = true;
+            });
+        }
+
+        // Visual Feedback
+        const btn = registrationForm.querySelector('button[type="submit"]');
+        btn.textContent = "Update Profile";
+        
+        const header = document.querySelector('#register h2');
+        if(header) header.textContent = "Edit Your Profile";
+
+        // Scroll to form
+        window.location.hash = '#register';
+    };
+
     window.deleteDonor = async (docId) => {
         if(!confirm("Are you sure you want to delete your donor profile? This cannot be undone.")) return;
-
         try {
             await deleteDoc(doc(db, "donors", docId));
             showToast("Profile deleted successfully.");
-            fetchDonors(); // Refresh the list immediately
+            fetchDonors(); 
         } catch (error) {
             console.error(error);
             showToast("Error deleting profile.", true);
@@ -431,10 +485,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>`;
                     } else if (req.status === 'rejected') {
                         statusBadge = `<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">Denied</span>`;
-                        details = `<p class="text-xs text-red-500 mt-1">The donor declined your request.</p>`;
+                        details = `<p class="text-xs text-red-500 mt-1">Declined.</p>`;
                     } else {
                         statusBadge = `<span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold">Pending</span>`;
-                        details = `<p class="text-xs text-gray-500 mt-1">Waiting for donor approval...</p>`;
+                        details = `<p class="text-xs text-gray-500 mt-1">Waiting...</p>`;
                     }
 
                     item.className = 'bg-white p-4 rounded shadow border mb-3';
@@ -476,7 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- Filters ---
     function filterDonors() {
         const type = searchDonationType.value;
         const city = searchCity.value.trim().toLowerCase();
@@ -506,7 +559,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if(searchBloodType) searchBloodType.addEventListener('change', filterDonors);
     if(searchOrgan) searchOrgan.addEventListener('change', filterDonors);
 
-    // --- Toast & Auth Handlers ---
     function showToast(message, isError = false) {
         const toast = document.getElementById('toast');
         const toastMessage = document.getElementById('toast-message');
@@ -543,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(() => {
                     showToast('Logged in!');
                     loginForm.reset();
-                    window.location.hash = '#find';
+                    window.location.hash = '#home';
                 })
                 .catch((error) => alert("Error: " + error.message));
         });
