@@ -15,6 +15,7 @@ import {
     query, 
     where,
     updateDoc,
+    deleteDoc, // <--- NEW IMPORT for Deleting
     doc,
     orderBy 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -56,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Notifications Items
     const navNotifications = getEl('nav-notifications');
-    const mobileNavNotifications = getEl('mobile-nav-notifications'); // Mobile Link
+    const mobileNavNotifications = getEl('mobile-nav-notifications'); 
     const notificationBadge = getEl('notification-badge');
     const notificationList = getEl('notification-list');
     const noNotifications = getEl('no-notifications');
@@ -81,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const organFilterContainer = getEl('organ-filter-container');
     const donateBloodCheckbox = getEl('donate-blood');
     const donateOrganCheckbox = getEl('donate-organ');
-    const bloodDetails = getEl('blood-donation-details');
     const organDetails = getEl('organ-donation-details');
 
     // --- Navigation Logic ---
@@ -123,94 +123,78 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Auth State Monitor (The Fix) ---
-  // 4. Monitor Auth State (Final Fix)
+    // --- Auth State Monitor ---
     onAuthStateChanged(auth, (user) => {
-        const navNotifications = document.getElementById('nav-notifications');
-        const mobileNavNotifications = document.getElementById('mobile-nav-notifications');
-
         if (user) {
-            // User is LOGGED IN
-            console.log("User is logged in:", user.email);
-            
-            // Hide Login/Signup
             if(navLogin) navLogin.classList.add('hidden');
             if(navSignup) navSignup.classList.add('hidden');
-            
-            // Show Protected Links
             if(navRegister) navRegister.classList.remove('hidden');
             if(navLogout) navLogout.classList.remove('hidden');
             
-            // FORCE SHOW NOTIFICATIONS
             if(navNotifications) {
-                navNotifications.style.display = 'block'; // Force CSS display
+                navNotifications.style.display = 'block'; 
                 navNotifications.classList.remove('hidden');
             }
-            if(mobileNavNotifications) {
-                mobileNavNotifications.classList.remove('hidden');
-            }
+            if(mobileNavNotifications) mobileNavNotifications.classList.remove('hidden');
 
-            // Load Data
             fetchNotifications();
 
-            // Redirect if stuck on login
             if (window.location.hash === '#login') {
                 window.location.hash = '#find';
             }
         } else {
-            // User is LOGGED OUT
-            console.log("User is logged out");
-
-            // Show Login/Signup
             if(navLogin) navLogin.classList.remove('hidden');
             if(navSignup) navSignup.classList.remove('hidden');
-            
-            // Hide Protected Links
             if(navRegister) navRegister.classList.add('hidden');
             if(navLogout) navLogout.classList.add('hidden');
             
-            // Hide Notifications
             if(navNotifications) {
-                navNotifications.style.display = 'none'; // Force CSS hide
+                navNotifications.style.display = 'none'; 
                 navNotifications.classList.add('hidden');
             }
             if(mobileNavNotifications) mobileNavNotifications.classList.add('hidden');
 
-            // Kick user out of protected pages
             const hash = window.location.hash;
-            if (hash === '#register' || hash === '#notifications') {
+            if (hash === '#register' || hash === '#find' || hash === '#notifications') {
                  window.location.hash = '#login';
             }
         }
     });
-    // --- Other Logic (Registration, Donors, Requests) ---
-    
-    // Registration Toggles
-    if(donateBloodCheckbox) {
-        donateBloodCheckbox.addEventListener('change', () => {
-            bloodDetails.classList.toggle('hidden', !donateBloodCheckbox.checked);
-        });
-    }
+
+    // --- Registration Logic ---
     if(donateOrganCheckbox) {
         donateOrganCheckbox.addEventListener('change', () => {
             organDetails.classList.toggle('hidden', !donateOrganCheckbox.checked);
         });
     }
 
-    // Submit Registration
     if(registrationForm) {
         registrationForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const isBloodDonor = donateBloodCheckbox.checked;
             const isOrganDonor = donateOrganCheckbox.checked;
+            const bloodType = getEl('blood-type').value; 
 
+            // 1. Validation: Must select at least one type
             if (!isBloodDonor && !isOrganDonor) {
-                showToast('Select at least one donation type.', true);
+                showToast('Please select at least one donation type (Blood or Organ).', true);
+                return;
+            }
+
+            // 2. Validation: Blood Type is MANDATORY
+            if (bloodType === "") {
+                showToast('Blood Type is required for all donors.', true);
                 return;
             }
 
             const pledgedOrgans = isOrganDonor ? 
                 [...document.querySelectorAll('input[name="organ"]:checked')].map(cb => cb.value) : [];
+
+            // 3. Validation: Organ Check
+            if (isOrganDonor && pledgedOrgans.length === 0) {
+                showToast('Please select which organs you wish to donate.', true);
+                return;
+            }
 
             const donorData = {
                 userId: auth.currentUser.uid,
@@ -222,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 city: getEl('city').value,
                 state: getEl('state').value,
                 isBloodDonor,
-                bloodType: isBloodDonor ? getEl('blood-type').value : null,
+                bloodType: bloodType,
                 isOrganDonor,
                 organs: pledgedOrgans,
                 createdAt: new Date()
@@ -240,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Fetch Donors
+    // --- Fetch Donors ---
     async function fetchDonors() {
         if(!loader || !donorList) return;
         loader.style.display = 'block';
@@ -288,15 +272,27 @@ document.addEventListener('DOMContentLoaded', () => {
             let phoneNumberDisplay = '<span class="text-gray-400 italic">Hidden for Privacy</span>';
 
             if (isMyOwnPost) {
+                // CASE 1: MY OWN POST
                 phoneNumberDisplay = `<a href="tel:${donor.phone}" class="text-blue-600 hover:underline">${donor.phone}</a>`;
-                actionButton = `<span class="text-xs bg-gray-200 px-2 py-1 rounded">Your Post</span>`;
+                
+                // NEW: Added Delete Button
+                actionButton = `
+                    <div class="flex items-center space-x-2 w-full">
+                        <span class="text-xs bg-gray-200 px-2 py-2 rounded text-center flex-grow">Your Post</span>
+                        <button onclick="window.deleteDonor('${donor.id}')" class="text-xs bg-red-100 text-red-600 px-3 py-2 rounded hover:bg-red-200 border border-red-200 font-bold">
+                            Delete
+                        </button>
+                    </div>`;
             } else if (requestStatus === 'approved') {
+                // CASE 2: APPROVED
                 phoneNumberDisplay = `<a href="tel:${donor.phone}" class="text-blue-600 font-bold hover:underline">${donor.phone}</a>`;
                 actionButton = `<span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Approved</span>`;
             } else if (requestStatus === 'pending') {
+                // CASE 3: PENDING
                 actionButton = `<button disabled class="w-full bg-yellow-400 text-white py-2 rounded font-semibold cursor-not-allowed">Request Pending...</button>`;
             } else {
-actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.userId}', '${donor.fullName}', '${donor.phone}')" class="w-full bg-red-500 text-white py-2 rounded font-semibold hover:bg-red-600 transition">Request Contact</button>`;
+                // CASE 4: REQUEST
+                actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.userId}', '${donor.fullName}', '${donor.phone}')" class="w-full bg-red-500 text-white py-2 rounded font-semibold hover:bg-red-600 transition">Request Contact</button>`;
             }
 
             const card = document.createElement('div');
@@ -310,7 +306,10 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
                             <span class="text-red-500 font-semibold mr-2">Phone:</span>
                             ${phoneNumberDisplay}
                         </div>
-                        ${donor.isBloodDonor ? `<div class="flex items-center"><span class="text-red-500 font-semibold mr-2">Blood:</span><span>${donor.bloodType}</span></div>` : ''}
+                        <div class="flex items-center">
+                            <span class="text-red-500 font-semibold mr-2">Blood:</span>
+                            <span>${donor.bloodType}</span>
+                        </div>
                         ${donor.isOrganDonor && organs.length > 0 ? `<div class="flex items-start"><span class="text-red-500 font-semibold mr-2 shrink-0">Organs:</span><span>${organs.join(', ')}</span></div>` : ''}
                     </div>
                 </div>
@@ -322,10 +321,22 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
     }
 
     // --- Global Functions ---
-   // --- Updated: Saves Donor Phone Number ---
+    // NEW: Delete Donor Function
+    window.deleteDonor = async (docId) => {
+        if(!confirm("Are you sure you want to delete your donor profile? This cannot be undone.")) return;
+
+        try {
+            await deleteDoc(doc(db, "donors", docId));
+            showToast("Profile deleted successfully.");
+            fetchDonors(); // Refresh the list immediately
+        } catch (error) {
+            console.error(error);
+            showToast("Error deleting profile.", true);
+        }
+    };
+
     window.initiateRequest = async (donorDocId, donorUserId, donorName, donorPhone) => {
         if (!confirm(`Send a request to view contact details for ${donorName}?`)) return;
-
         try {
             await addDoc(requestsCol, {
                 requesterId: auth.currentUser.uid,
@@ -333,7 +344,7 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
                 donorDocId: donorDocId, 
                 donorOwnerId: donorUserId,
                 donorName: donorName,
-                donorPhone: donorPhone, // <--- SAVING THE PHONE NUMBER HERE
+                donorPhone: donorPhone,
                 status: 'pending',
                 createdAt: new Date()
             });
@@ -358,8 +369,6 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
     };
 
     // --- Notifications Logic ---
-  // --- Notifications Logic (Fixed: No Index Required) ---
-    // --- Notifications Logic (Dual View: Incoming & Outgoing) ---
     async function fetchNotifications() {
         if(!notificationList) return;
         
@@ -367,19 +376,16 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
         const currentUserId = auth.currentUser.uid;
 
         try {
-            // 1. Fetch INCOMING Requests (People asking ME)
             const qIncoming = query(requestsCol, where("donorOwnerId", "==", currentUserId));
             const snapIncoming = await getDocs(qIncoming);
             const incoming = snapIncoming.docs.filter(doc => doc.data().status === 'pending');
 
-            // 2. Fetch OUTGOING Requests (People I asked)
             const qOutgoing = query(requestsCol, where("requesterId", "==", currentUserId));
             const snapOutgoing = await getDocs(qOutgoing);
             const outgoing = snapOutgoing.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
             notificationList.innerHTML = '';
             
-            // --- SECTION 1: REQUESTS RECEIVED ---
             if (incoming.length > 0) {
                 const header = document.createElement('h3');
                 header.className = "font-bold text-gray-700 mt-4 mb-2 border-b pb-2";
@@ -403,7 +409,6 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
                 });
             }
 
-            // --- SECTION 2: MY SENT REQUESTS ---
             if (outgoing.length > 0) {
                 const header = document.createElement('h3');
                 header.className = "font-bold text-gray-700 mt-6 mb-2 border-b pb-2";
@@ -412,19 +417,16 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
 
                 outgoing.forEach(req => {
                     const item = document.createElement('div');
-                    
-                    // Logic for Status Colors & Phone Display
                     let statusBadge = '';
                     let details = '';
                     
                     if (req.status === 'approved') {
                         statusBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Approved</span>`;
-                        // HERE IS THE MAGIC: Showing the Name & Phone Number!
                         details = `
                             <div class="mt-2 p-2 bg-green-50 border border-green-200 rounded">
                                 <p class="text-sm text-gray-800">Donor: <strong>${req.donorName}</strong></p>
                                 <p class="text-lg font-bold text-blue-600 mt-1">
-                                    <a href="tel:${req.donorPhone}">📞 ${req.donorPhone}</a>
+                                    <a href="tel:${req.donorPhone || '#'}">📞 ${req.donorPhone || 'Not Available (Old Request)'}</a>
                                 </p>
                             </div>`;
                     } else if (req.status === 'rejected') {
@@ -450,13 +452,12 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
                 });
             }
 
-            // Empty State
             if (incoming.length === 0 && outgoing.length === 0) {
                 if(noNotifications) noNotifications.classList.remove('hidden');
                 updateBadge(0);
             } else {
                 if(noNotifications) noNotifications.classList.add('hidden');
-                updateBadge(incoming.length); // Badge only shows Actionable items (Incoming)
+                updateBadge(incoming.length); 
             }
 
         } catch (error) {
@@ -485,7 +486,7 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
         const filtered = allDonors.filter(donor => {
             const cityMatch = !city || (donor.city && donor.city.toLowerCase().includes(city));
             let typeMatch = (type === 'all') || (type === 'blood' && donor.isBloodDonor) || (type === 'organ' && donor.isOrganDonor);
-            const bloodMatch = !bloodType || (donor.isBloodDonor && donor.bloodType === bloodType);
+            const bloodMatch = !bloodType || (donor.bloodType === bloodType);
             const organsArray = donor.organs || [];
             const organMatch = !organ || (donor.isOrganDonor && organsArray.includes(organ));
             return cityMatch && typeMatch && bloodMatch && organMatch;
@@ -533,24 +534,18 @@ actionButton = `<button onclick="window.initiateRequest('${donor.id}', '${donor.
         });
     }
 
-  if(loginForm) {
+    if(loginForm) {
         loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            const email = getEl('login-email').value; // Check these IDs in HTML
-            const password = getEl('login-password').value; // Check these IDs in HTML
-            
-            console.log("Logging in with:", email); // DEBUG LOG
-
+            const email = getEl('login-email').value;
+            const password = getEl('login-password').value;
             signInWithEmailAndPassword(auth, email, password)
                 .then(() => {
                     showToast('Logged in!');
                     loginForm.reset();
                     window.location.hash = '#find';
                 })
-                .catch((error) => {
-                    console.error(error); // See the full error in console
-                    alert("Login Failed: " + error.message);
-                });
+                .catch((error) => alert("Error: " + error.message));
         });
     }
 

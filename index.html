@@ -208,35 +208,45 @@
                 <h2 class="text-3xl font-bold text-center mb-10">Become a Lifesaver</h2>
                 <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md">
                     <form id="registration-form">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                            <div>
-                                <label for="fullName" class="block text-sm font-medium text-gray-700">Full Name</label>
-                                <input type="text" id="fullName" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
-                            </div>
-                            <div>
-                                <label for="age" class="block text-sm font-medium text-gray-700">Age</label>
-                                <input type="number" id="age" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required min="18" max="65">
-                            </div>
-                             <div>
-                                <label for="gender" class="block text-sm font-medium text-gray-700">Gender</label>
-                                <select id="gender" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
-                                    <option value="">Select Gender</option>
-                                    <option>Male</option><option>Female</option><option>Other</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
-                                <input type="tel" id="phone" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
-                            </div>
-                             <div>
-                                <label for="city" class="block text-sm font-medium text-gray-700">City</label>
-                                <input type="text" id="city" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
-                            </div>
-                            <div>
-                                <label for="state" class="block text-sm font-medium text-gray-700">State / Province</label>
-                                <input type="text" id="state" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
-                            </div>
-                        </div>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div>
+        <label for="fullName" class="block text-sm font-medium text-gray-700">Full Name</label>
+        <input type="text" id="fullName" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+    </div>
+    <div>
+        <label for="age" class="block text-sm font-medium text-gray-700">Age</label>
+        <input type="number" id="age" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required min="18" max="65">
+    </div>
+    <div>
+        <label for="gender" class="block text-sm font-medium text-gray-700">Gender</label>
+        <select id="gender" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+            <option value="">Select Gender</option>
+            <option>Male</option><option>Female</option><option>Other</option>
+        </select>
+    </div>
+
+    <div>
+        <label for="blood-type" class="block text-sm font-medium text-gray-700">Blood Type <span class="text-red-500">*</span></label>
+        <select id="blood-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+            <option value="">Select Blood Type</option>
+            <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+            <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+        </select>
+    </div>
+
+    <div>
+        <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
+        <input type="tel" id="phone" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+    </div>
+    <div>
+        <label for="city" class="block text-sm font-medium text-gray-700">City</label>
+        <input type="text" id="city" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+    </div>
+    <div>
+        <label for="state" class="block text-sm font-medium text-gray-700">State / Province</label>
+        <input type="text" id="state" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+    </div>
+</div>
 
                         <div class="mb-6">
                             <label class="block text-sm font-medium text-gray-700 mb-2">What would you like to donate?</label>
@@ -246,14 +256,7 @@
                             </div>
                         </div>
 
-                        <div id="blood-donation-details" class="hidden mb-6">
-                             <label for="blood-type" class="block text-sm font-medium text-gray-700">Blood Type</label>
-                            <select id="blood-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border">
-                                <option value="">Select Blood Type</option>
-                                <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
-                                <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
-                            </select>
-                        </div>
+                      
                         
                         <div id="organ-donation-details" class="hidden mb-6">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Which organs would you like to pledge?</label>
