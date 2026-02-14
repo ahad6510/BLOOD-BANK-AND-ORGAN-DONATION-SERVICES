@@ -24,6 +24,5 @@ TOHF-E-HAYAT is a secure, real-time web application designed to bridge the gap b
 - **Icons:** FontAwesome / HeroIcons
 
 📜 License
-This project is open-source and available under the MIT License.
 
 Developed with ❤️ by Ahad Khan
