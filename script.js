@@ -2,10 +2,11 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { 
     getAuth, 
-    createUserWithEmailAndPassword, 
-    signInWithEmailAndPassword, 
     onAuthStateChanged,
-    signOut
+    signOut,
+    GoogleAuthProvider,
+    signInWithPopup,
+    getAdditionalUserInfo 
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { 
     getFirestore, 
@@ -17,7 +18,9 @@ import {
     updateDoc,
     deleteDoc, 
     doc,
-    orderBy 
+    orderBy,
+    setDoc,
+    getDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -37,18 +40,20 @@ const db = getFirestore(app);
 const donorsCol = collection(db, "donors");
 const requestsCol = collection(db, "requests");
 
+// 3. Cloudinary Configuration
+const CLOUDINARY_CLOUD_NAME = "dzun5oydh"; 
+const CLOUDINARY_UPLOAD_PRESET = "tohfe_hayat_preset"; 
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log("Website Loaded...");
 
     let allDonors = [];
     let myRequests = {}; 
-    let editingDonorId = null; // NEW: Tracks if we are editing
+    let editingDonorId = null;
 
     // --- Selectors ---
     const getEl = (id) => document.getElementById(id);
 
-    const loginForm = getEl('login-form');
-    const signupForm = getEl('signup-form');
     const navLogin = getEl('nav-login');
     const navSignup = getEl('nav-signup');
     const navRegister = getEl('nav-register'); 
@@ -90,7 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
             section.classList.toggle('active', section.id === id);
         });
         
-        // Reset Edit Mode if leaving register page
         if (id !== 'register' && editingDonorId) {
             resetFormState();
         }
@@ -132,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if(mobileNavNotifications) mobileNavNotifications.classList.remove('hidden');
             fetchNotifications();
-            if (window.location.hash === '#login') window.location.hash = '#home';
+            if (window.location.hash === '#login' || window.location.hash === '#signup') window.location.hash = '#home';
         } else {
             if(navLogin) navLogin.classList.remove('hidden');
             if(navSignup) navSignup.classList.remove('hidden');
@@ -155,15 +159,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // HELPER: Reset Form
     function resetFormState() {
         editingDonorId = null;
         registrationForm.reset();
         organDetails.classList.add('hidden');
-        // Reset button text
         const btn = registrationForm.querySelector('button[type="submit"]');
         if(btn) btn.textContent = "Register Now";
-        // Reset header text (optional, assuming H2 is "Become a Lifesaver")
         const header = document.querySelector('#register h2');
         if(header) header.textContent = "Become a Lifesaver";
     }
@@ -205,24 +206,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 bloodType: bloodType,
                 isOrganDonor,
                 organs: pledgedOrgans,
-                // Only update createdAt if it's a new post, otherwise keep original date? 
-                // Actually, for sorting, let's keep original date or add updatedAt.
-                // We'll keep createdAt as is for now.
             };
 
-            // NEW: Add createdAt only if new
             if (!editingDonorId) {
                 donorData.createdAt = new Date();
             }
 
             try {
                 if (editingDonorId) {
-                    // UPDATE EXISTING
                     const docRef = doc(db, "donors", editingDonorId);
                     await updateDoc(docRef, donorData);
                     showToast('Profile updated successfully!');
                 } else {
-                    // CREATE NEW
                     await addDoc(donorsCol, donorData);
                     showToast('Registration successful!');
                 }
@@ -270,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDonors(donorsToRender) {
         donorList.innerHTML = '';
         if (donorsToRender.length === 0) {
-            if(noResults) noResults.classList.remove('hidden');
+            if(noResults) noResults.classList.add('hidden');
             return;
         }
         if(noResults) noResults.classList.add('hidden');
@@ -285,8 +280,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (isMyOwnPost) {
                 phoneNumberDisplay = `<a href="tel:${donor.phone}" class="text-blue-600 hover:underline">${donor.phone}</a>`;
-                
-                // NEW: Added Edit Button next to Delete
                 actionButton = `
                     <div class="flex items-center space-x-2 w-full">
                         <button onclick="window.editDonor('${donor.id}')" class="flex-1 bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 font-bold transition text-sm">
@@ -331,17 +324,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Global Functions ---
-    
-    // NEW: Edit Donor Function
     window.editDonor = (id) => {
-        // Find the donor data locally
         const donor = allDonors.find(d => d.id === id);
         if (!donor) return;
 
-        // Set Edit Mode
         editingDonorId = id;
 
-        // Populate Form
         getEl('fullName').value = donor.fullName;
         getEl('age').value = donor.age;
         getEl('gender').value = donor.gender;
@@ -350,14 +338,11 @@ document.addEventListener('DOMContentLoaded', () => {
         getEl('state').value = donor.state;
         getEl('blood-type').value = donor.bloodType;
 
-        // Handle Checkboxes
         donateBloodCheckbox.checked = donor.isBloodDonor;
         donateOrganCheckbox.checked = donor.isOrganDonor;
         
-        // Show/Hide Organ Details
         organDetails.classList.toggle('hidden', !donor.isOrganDonor);
 
-        // Reset Organs
         document.querySelectorAll('input[name="organ"]').forEach(cb => cb.checked = false);
         if (donor.isOrganDonor && donor.organs) {
             donor.organs.forEach(organ => {
@@ -366,14 +351,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // Visual Feedback
         const btn = registrationForm.querySelector('button[type="submit"]');
         btn.textContent = "Update Profile";
         
         const header = document.querySelector('#register h2');
         if(header) header.textContent = "Edit Your Profile";
 
-        // Scroll to form
         window.location.hash = '#register';
     };
 
@@ -565,46 +548,136 @@ document.addEventListener('DOMContentLoaded', () => {
         if(!toast || !toastMessage) return;
         
         toastMessage.textContent = message;
-        toast.className = `fixed bottom-5 right-5 text-white px-6 py-3 rounded-lg shadow-lg transition-opacity duration-300 opacity-100 ${isError ? 'bg-red-600' : 'bg-gray-900'}`;
-        setTimeout(() => { toast.style.opacity = '0'; }, 3000);
+        toast.className = `fixed bottom-5 right-5 text-white px-6 py-3 rounded-lg shadow-lg transition-opacity duration-300 opacity-100 z-50 ${isError ? 'bg-red-600' : 'bg-gray-900'}`;
+        setTimeout(() => { toast.style.opacity = '0'; }, 5000);
     }
 
-    if(signupForm) {
-        signupForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const email = getEl('signup-email').value;
-            const password = getEl('signup-password').value;
-            createUserWithEmailAndPassword(auth, email, password)
-                .then(() => {
-                    signOut(auth).then(() => {
-                        alert("Account created! Please log in.");
-                        signupForm.reset();
-                        window.location.hash = '#login';
-                    });
-                })
-                .catch((error) => alert("Error: " + error.message));
+    // --- Helper Function: Upload to Cloudinary ---
+    async function uploadToCloudinary(file) {
+        const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`;
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+        const response = await fetch(url, {
+            method: "POST",
+            body: formData
         });
+
+        if (!response.ok) {
+            throw new Error("Failed to upload image to Cloudinary.");
+        }
+
+        const data = await response.json();
+        return data.secure_url; 
     }
 
-    if(loginForm) {
-        loginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const email = getEl('login-email').value;
-            const password = getEl('login-password').value;
-            signInWithEmailAndPassword(auth, email, password)
-                .then(() => {
-                    showToast('Logged in!');
-                    loginForm.reset();
+    // --- Authentication Providers & Logic ---
+    const googleProvider = new GoogleAuthProvider();
+
+    // 1. GATEKEEPER LOGIC FOR LOGIN
+    const handleGoogleLogin = async () => {
+        try {
+            const result = await signInWithPopup(auth, googleProvider);
+            const details = getAdditionalUserInfo(result);
+            
+            if (details.isNewUser) {
+                await signOut(auth);
+                showToast("Account not found. Please go to Sign Up to upload your documents.", true);
+                window.location.hash = '#signup';
+                return;
+            }
+
+            const userDocRef = doc(db, "users", result.user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+                const userData = userDocSnap.data();
+                
+                if (userData.status === 'pending') {
+                    await signOut(auth);
+                    showToast("Your profile is still under verification. Please wait for admin approval.", true);
+                    return; 
+                } 
+                else if (userData.status === 'verified') {
+                    showToast(`Welcome back, ${result.user.displayName || 'User'}!`);
                     window.location.hash = '#home';
-                })
-                .catch((error) => alert("Error: " + error.message));
-        });
-    }
+                }
+            } else {
+                await signOut(auth);
+                showToast("Incomplete profile. Please use the Sign Up page.", true);
+            }
+
+        } catch (error) {
+            console.error(error);
+            showToast("Google Sign-In Failed: " + error.message, true);
+        }
+    };
+
+    // 2. GATEKEEPER LOGIC FOR SIGN UP
+    const handleGoogleSignup = async () => {
+        const aadhaarInput = getEl('signup-aadhaar');
+        const photoInput = getEl('signup-photo');
+
+        if (!aadhaarInput.files[0] || !photoInput.files[0]) {
+            showToast("Please upload both your Aadhaar Card and Passport Photo to continue.", true);
+            return; 
+        }
+
+        try {
+            showToast("Authenticating...");
+            const result = await signInWithPopup(auth, googleProvider);
+            const details = getAdditionalUserInfo(result);
+
+            if (!details.isNewUser) {
+                await signOut(auth); 
+                showToast("This Gmail is already registered with us. Please log in.", true);
+                window.location.hash = '#login';
+                return; 
+            }
+
+            showToast("Uploading documents... Please wait.");
+            
+            const aadhaarUrl = await uploadToCloudinary(aadhaarInput.files[0]);
+            const photoUrl = await uploadToCloudinary(photoInput.files[0]);
+
+            await setDoc(doc(db, "users", result.user.uid), {
+                email: result.user.email,
+                displayName: result.user.displayName,
+                aadhaarDocumentUrl: aadhaarUrl,
+                passportPhotoUrl: photoUrl,
+                status: 'pending', 
+                createdAt: new Date()
+            });
+
+            await signOut(auth);
+            
+            // Pop-up Alert Message
+            alert("Your profile has been submitted and will be verified by the authority. Please login after some time.");
+            
+            aadhaarInput.value = '';
+            photoInput.value = '';
+            window.location.hash = '#login';
+
+        } catch (error) {
+            console.error(error);
+            if (auth.currentUser) {
+                 await signOut(auth);
+            }
+            showToast("Sign-Up Failed: " + error.message, true);
+        }
+    };
+
+    const btnGoogleLogin = getEl('google-login-btn');
+    const btnGoogleSignup = getEl('google-signup-btn');
+    
+    if (btnGoogleLogin) btnGoogleLogin.addEventListener('click', handleGoogleLogin);
+    if (btnGoogleSignup) btnGoogleSignup.addEventListener('click', handleGoogleSignup);
 
     if(navLogout) {
         navLogout.addEventListener('click', () => {
             signOut(auth).then(() => {
-                showToast('Logged out.');
+                showToast('Logged out successfully.');
                 window.location.hash = '#home';
             });
         });
