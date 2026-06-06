@@ -147,11 +147,22 @@
             <div class="container mx-auto px-6">
                 <h2 class="text-3xl font-bold text-center mb-10">Find a Donor</h2>
                 
-                <div class="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                <div class="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                    
+                    <div>
+                        <label for="search-state" class="block text-sm font-medium text-gray-700">State</label>
+                        <select id="search-state" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 p-2 border bg-white">
+                            <option value="">All States</option>
+                            </select>
+                    </div>
+
                     <div>
                         <label for="search-city" class="block text-sm font-medium text-gray-700">City</label>
-                        <input type="text" id="search-city" placeholder="e.g., Karachi" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 p-2 border">
+                        <select id="search-city" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 p-2 border bg-white" disabled>
+                            <option value="">Select State First</option>
+                            </select>
                     </div>
+
                     <div>
                         <label for="search-donation-type" class="block text-sm font-medium text-gray-700">Looking For</label>
                         <select id="search-donation-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 p-2 border">
@@ -160,6 +171,7 @@
                             <option value="organ">Organ Donors</option>
                         </select>
                     </div>
+                    
                     <div id="blood-type-filter-container">
                         <label for="search-blood-type" class="block text-sm font-medium text-gray-700">Blood Type</label>
                         <select id="search-blood-type" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 p-2 border">
@@ -168,6 +180,7 @@
                             <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
                         </select>
                     </div>
+                    
                     <div id="organ-filter-container" class="hidden">
                         <label for="search-organ" class="block text-sm font-medium text-gray-700">Organ</label>
                         <select id="search-organ" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 p-2 border">
@@ -232,16 +245,22 @@
                             </div>
 
                             <div>
-                                <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
-                                <input type="tel" id="phone" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+                                <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number <span class="text-red-500">*</span></label>
+                                <input type="tel" id="phone" name="phone" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" placeholder="10-digit mobile number" pattern="[0-9]{10}" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required>
                             </div>
+                            
                             <div>
-                                <label for="city" class="block text-sm font-medium text-gray-700">City</label>
-                                <input type="text" id="city" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+                                <label for="state" class="block text-sm font-medium text-gray-700">State / Province <span class="text-red-500">*</span></label>
+                                <select id="state" name="state" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border bg-white" required>
+                                    <option value="">Select State</option>
+                                </select>
                             </div>
+
                             <div>
-                                <label for="state" class="block text-sm font-medium text-gray-700">State / Province</label>
-                                <input type="text" id="state" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border" required>
+                                <label for="city" class="block text-sm font-medium text-gray-700">City <span class="text-red-500">*</span></label>
+                                <select id="city" name="city" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm p-2 border bg-white" disabled required>
+                                    <option value="">Select State First</option>
+                                </select>
                             </div>
                         </div>
 

@@ -51,6 +51,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let myRequests = {}; 
     let editingDonorId = null;
 
+    // --- State and City Data Dictionary ---
+    const locationData = {
+        "Uttar Pradesh": ["Jhansi", "Lucknow", "Kanpur", "Agra", "Varanasi", "Prayagraj", "Meerut", "Noida", "Ghaziabad"],
+        "Madhya Pradesh": ["Bhopal", "Indore", "Gwalior", "Jabalpur", "Ujjain"],
+        "Delhi": ["New Delhi", "North Delhi", "South Delhi", "East Delhi", "West Delhi"],
+        "Maharashtra": ["Mumbai", "Pune", "Nagpur", "Nashik", "Thane"],
+        "Karnataka": ["Bengaluru", "Mysuru", "Mangaluru", "Hubballi"]
+    };
+
     // --- Selectors ---
     const getEl = (id) => document.getElementById(id);
 
@@ -71,15 +80,81 @@ document.addEventListener('DOMContentLoaded', () => {
     const donorList = getEl('donor-list');
     const loader = getEl('loader');
     const noResults = getEl('no-results');
+    
+    // Search Selectors
+    const searchState = getEl('search-state');
     const searchCity = getEl('search-city');
     const searchDonationType = getEl('search-donation-type');
     const searchBloodType = getEl('search-blood-type');
     const searchOrgan = getEl('search-organ');
     const bloodTypeFilterContainer = getEl('blood-type-filter-container');
     const organFilterContainer = getEl('organ-filter-container');
+    
+    // Form Selectors
     const donateBloodCheckbox = getEl('donate-blood');
     const donateOrganCheckbox = getEl('donate-organ');
     const organDetails = getEl('organ-donation-details');
+    const stateSelect = getEl('state');
+    const citySelect = getEl('city');
+
+    // --- Cascading State/City Logic for Registration Form ---
+    if (stateSelect && citySelect) {
+        Object.keys(locationData).forEach(state => {
+            const option = document.createElement('option');
+            option.value = state;
+            option.textContent = state;
+            stateSelect.appendChild(option);
+        });
+
+        stateSelect.addEventListener('change', function() {
+            const selectedState = this.value;
+            citySelect.innerHTML = '<option value="">Select City</option>'; 
+            
+            if (selectedState) {
+                citySelect.disabled = false;
+                locationData[selectedState].forEach(city => {
+                    const option = document.createElement('option');
+                    option.value = city;
+                    option.textContent = city;
+                    citySelect.appendChild(option);
+                });
+            } else {
+                citySelect.disabled = true;
+                citySelect.innerHTML = '<option value="">Select State First</option>';
+            }
+        });
+    }
+
+    // --- Cascading State/City Logic for Search Filter ---
+    if (searchState && searchCity) {
+        Object.keys(locationData).forEach(state => {
+            const option = document.createElement('option');
+            option.value = state;
+            option.textContent = state;
+            searchState.appendChild(option);
+        });
+
+        searchState.addEventListener('change', function() {
+            const selectedState = this.value;
+            searchCity.innerHTML = '<option value="">All Cities</option>'; 
+            
+            if (selectedState) {
+                searchCity.disabled = false;
+                locationData[selectedState].forEach(city => {
+                    const option = document.createElement('option');
+                    option.value = city;
+                    option.textContent = city;
+                    searchCity.appendChild(option);
+                });
+            } else {
+                searchCity.disabled = true;
+                searchCity.innerHTML = '<option value="">Select State First</option>';
+            }
+            filterDonors(); 
+        });
+
+        searchCity.addEventListener('change', filterDonors); 
+    }
 
     // --- Navigation Logic ---
     const showSection = (hash) => {
@@ -163,6 +238,10 @@ document.addEventListener('DOMContentLoaded', () => {
         editingDonorId = null;
         registrationForm.reset();
         organDetails.classList.add('hidden');
+        if(citySelect) {
+            citySelect.innerHTML = '<option value="">Select State First</option>';
+            citySelect.disabled = true;
+        }
         const btn = registrationForm.querySelector('button[type="submit"]');
         if(btn) btn.textContent = "Register Now";
         const header = document.querySelector('#register h2');
@@ -185,6 +264,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const phoneVal = getEl('phone').value;
+            if (phoneVal.length !== 10) {
+                showToast('Please enter a valid 10-digit phone number.', true);
+                return;
+            }
+
             const pledgedOrgans = isOrganDonor ? 
                 [...document.querySelectorAll('input[name="organ"]:checked')].map(cb => cb.value) : [];
 
@@ -199,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fullName: getEl('fullName').value,
                 age: parseInt(getEl('age').value),
                 gender: getEl('gender').value,
-                phone: getEl('phone').value,
+                phone: phoneVal,
                 city: getEl('city').value,
                 state: getEl('state').value,
                 isBloodDonor,
@@ -334,8 +419,12 @@ document.addEventListener('DOMContentLoaded', () => {
         getEl('age').value = donor.age;
         getEl('gender').value = donor.gender;
         getEl('phone').value = donor.phone;
-        getEl('city').value = donor.city;
+        
         getEl('state').value = donor.state;
+        const event = new Event('change');
+        getEl('state').dispatchEvent(event);
+        getEl('city').value = donor.city;
+        
         getEl('blood-type').value = donor.bloodType;
 
         donateBloodCheckbox.checked = donor.isBloodDonor;
@@ -405,6 +494,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    window.deleteRequest = async (requestId) => {
+        try {
+            await deleteDoc(doc(db, "requests", requestId));
+            fetchNotifications(); 
+        } catch (error) {
+            console.error("Error deleting request:", error);
+            showToast("Could not dismiss notification.", true);
+        }
+    };
+
     // --- Notifications Logic ---
     async function fetchNotifications() {
         if(!notificationList) return;
@@ -456,6 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const item = document.createElement('div');
                     let statusBadge = '';
                     let details = '';
+                    let dismissBtn = ''; 
                     
                     if (req.status === 'approved') {
                         statusBadge = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Approved</span>`;
@@ -463,20 +563,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="mt-2 p-2 bg-green-50 border border-green-200 rounded">
                                 <p class="text-sm text-gray-800">Donor: <strong>${req.donorName}</strong></p>
                                 <p class="text-lg font-bold text-blue-600 mt-1">
-                                    <a href="tel:${req.donorPhone || '#'}">📞 ${req.donorPhone || 'Not Available (Old Request)'}</a>
+                                    <a href="tel:${req.donorPhone || '#'}">📞 ${req.donorPhone || 'Not Available'}</a>
                                 </p>
                             </div>`;
+                        dismissBtn = `<button onclick="window.deleteRequest('${req.id}')" class="mt-3 text-xs text-gray-500 hover:text-red-600 underline">Dismiss Notification</button>`;
                     } else if (req.status === 'rejected') {
                         statusBadge = `<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">Denied</span>`;
                         details = `<p class="text-xs text-red-500 mt-1">Declined.</p>`;
+                        dismissBtn = `<button onclick="window.deleteRequest('${req.id}')" class="mt-2 text-xs text-gray-500 hover:text-red-600 underline">Dismiss Notification</button>`;
                     } else {
                         statusBadge = `<span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold">Pending</span>`;
                         details = `<p class="text-xs text-gray-500 mt-1">Waiting...</p>`;
                     }
 
-                    item.className = 'bg-white p-4 rounded shadow border mb-3';
+                    item.className = 'bg-white p-4 rounded shadow border mb-3 flex flex-col';
                     item.innerHTML = `
-                        <div class="flex justify-between items-start">
+                        <div class="flex justify-between items-start w-full">
                             <div>
                                 <p class="font-semibold text-gray-800">Request to: ${req.donorName}</p>
                                 <p class="text-xs text-gray-400">Sent: ${req.createdAt && req.createdAt.seconds ? new Date(req.createdAt.seconds * 1000).toLocaleDateString() : 'Recently'}</p>
@@ -484,6 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${statusBadge}
                         </div>
                         ${details}
+                        ${dismissBtn ? `<div class="self-end mt-2">${dismissBtn}</div>` : ''}
                     `;
                     notificationList.appendChild(item);
                 });
@@ -491,10 +594,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (incoming.length === 0 && outgoing.length === 0) {
                 if(noNotifications) noNotifications.classList.remove('hidden');
-                updateBadge(0);
             } else {
                 if(noNotifications) noNotifications.classList.add('hidden');
-                updateBadge(incoming.length); 
+            }
+
+            // --- SMART BADGE TRACKING LOGIC ---
+            let badgeKeys = [];
+            
+            // Gather IDs of pending incoming requests
+            incoming.forEach(docSnap => {
+                badgeKeys.push(docSnap.id + '_incoming_pending');
+            });
+
+            // Gather IDs of completed outgoing requests (approved/rejected)
+            outgoing.forEach(req => {
+                if (req.status === 'approved' || req.status === 'rejected') {
+                    badgeKeys.push(req.id + '_outgoing_' + req.status);
+                }
+            });
+
+            // Check browser memory for notifications the user has already looked at
+            let seenNotifs = JSON.parse(localStorage.getItem('seenNotifs_' + currentUserId) || '[]');
+
+            if (window.location.hash === '#notifications') {
+                // If user is ON the notifications tab right now, save all current ones as "Seen"
+                localStorage.setItem('seenNotifs_' + currentUserId, JSON.stringify(badgeKeys));
+                updateBadge(0); // Hide the red dot
+            } else {
+                // If user is elsewhere, count how many new notifications they haven't seen yet
+                const unreadCount = badgeKeys.filter(key => !seenNotifs.includes(key)).length;
+                updateBadge(unreadCount);
             }
 
         } catch (error) {
@@ -513,24 +642,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Filter Logic ---
     function filterDonors() {
-        const type = searchDonationType.value;
-        const city = searchCity.value.trim().toLowerCase();
-        const bloodType = searchBloodType.value;
-        const organ = searchOrgan.value;
+        const type = searchDonationType ? searchDonationType.value : 'all';
+        const state = searchState ? searchState.value : '';
+        const city = searchCity ? searchCity.value : '';
+        const bloodType = searchBloodType ? searchBloodType.value : '';
+        const organ = searchOrgan ? searchOrgan.value : '';
 
         const filtered = allDonors.filter(donor => {
-            const cityMatch = !city || (donor.city && donor.city.toLowerCase().includes(city));
+            const stateMatch = !state || (donor.state && donor.state.toLowerCase() === state.toLowerCase());
+            const cityMatch = !city || (donor.city && donor.city.toLowerCase() === city.toLowerCase());
+            
             let typeMatch = (type === 'all') || (type === 'blood' && donor.isBloodDonor) || (type === 'organ' && donor.isOrganDonor);
             const bloodMatch = !bloodType || (donor.bloodType === bloodType);
             const organsArray = donor.organs || [];
             const organMatch = !organ || (donor.isOrganDonor && organsArray.includes(organ));
-            return cityMatch && typeMatch && bloodMatch && organMatch;
+            
+            return stateMatch && cityMatch && typeMatch && bloodMatch && organMatch;
         });
         renderDonors(filtered);
     }
 
-    if(searchCity) searchCity.addEventListener('input', filterDonors);
     if(searchDonationType) {
         searchDonationType.addEventListener('change', () => {
             const type = searchDonationType.value;
@@ -596,7 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (userData.status === 'pending') {
                     await signOut(auth);
-                    showToast("Your profile is still under verification. Please wait for admin approval.", true);
+                    alert("Your profile is still under verification. Please wait for admin approval before logging in.");
                     return; 
                 } 
                 else if (userData.status === 'verified') {
@@ -638,8 +771,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showToast("Uploading documents... Please wait.");
             
-            const aadhaarUrl = await uploadToCloudinary(aadhaarInput.files[0]);
-            const photoUrl = await uploadToCloudinary(photoInput.files[0]);
+            const [aadhaarUrl, photoUrl] = await Promise.all([
+                uploadToCloudinary(aadhaarInput.files[0]),
+                uploadToCloudinary(photoInput.files[0])
+            ]);
 
             await setDoc(doc(db, "users", result.user.uid), {
                 email: result.user.email,
@@ -652,7 +787,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             await signOut(auth);
             
-            // Pop-up Alert Message
             alert("Your profile has been submitted and will be verified by the authority. Please login after some time.");
             
             aadhaarInput.value = '';
